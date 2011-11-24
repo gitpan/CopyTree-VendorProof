@@ -1,0 +1,7 @@
+Changes
+Makefile.PL
+MANIFEST
+README
+t/CopyTree-VendorProof.t
+lib/CopyTree/VendorProof.pm
+META.yml                                 Module meta-data (added by MakeMaker)
