@@ -5,3 +5,4 @@ README
 t/CopyTree-VendorProof.t
 lib/CopyTree/VendorProof.pm
 META.yml                                 Module meta-data (added by MakeMaker)
+META.json                                Module JSON meta-data (added by MakeMaker)

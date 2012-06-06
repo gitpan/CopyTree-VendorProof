@@ -14,7 +14,7 @@ use warnings;
 # If you do not need this, moving things directly into @EXPORT or @EXPORT_OK
 # will save memory.
 
-our $VERSION = '0.0011';
+our $VERSION = '0.0012';
 
 use Carp();
 use Data::Dumper;
@@ -255,44 +255,145 @@ __END__
 
 =head1 NAME
 
-CopyTree::VendorProof - Perl extension for a generic interface to inplement a copy method between [a local computer and a remote file system] or [a remote file system and itself] or [local computer to local computer]. An example remote system would be Microsoft's Sharepoint file storeage, which takes commands via https
+CopyTree::VendorProof - Perl extension for generic copying.  This module's intented purpose is to facilitate file / dir copies between different types of remote systems that frequently use very different syntax for similar functions.  For example, Microsoft SharePoint's SOAP protocols and the Opentext Livelink's WebDAV protocols both support copy functions, but it is tedious to automate the movement of Livelink files into a SharePoint site.
 
-The supported (very basic) copy funtionalities mimics the unix cp -rf command - copies SOURCE to DEST, or multiple SOURCE(s) to DIRECTORY.
+This module defines standard (base class) methods for recursive copy operations, and relies on other modules to present protocol specific copy functions (like the SharePoint ones) as supplemental copy methods for the main module.  Therefore, all this module has to do is take care of the logistics of recursive copy.
+
+To illustrate this, imagine that the SharePoint file system is a flathead screw, and our local file system is a Philips screw.  This particular module (CopyTree::VendorProof) would be a power drill - which is to say that it is utterly useless on its own.  To drive the flathead or the Phillips screw, you'd need a flathead bit (SharePoint::SOAPHandler) or a Phillips bit (CopyTree::VendorProof::LocalFileOp), which you buy at the local hardware store, or in our case, free from cpan.  The power drill is your base class that will spin things, and the bits are helper modules that provide specific methods so you can drive specific screws into the wall.
+
+This module will enable copying between:
+
+[a local computer and a remote file system] 
+
+or 
+
+[a remote file system and itself] 
+
+or 
+
+[local computer to local computer]
+
+or
+
+[various remote systems]. 
+
+An example remote system would be Microsoft's SharePoint file 
+storage, which takes commands via https.
+
+The supported (very basic, but recursive) copy functionalities mimics
+the unix 
+
+	cp -rf
+
+command - copies SOURCE to DEST, or multiple SOURCE(s) to DIRECTORY.
 
 =head1 SYNOPSIS
 
-  use CopyTree::VendorProof;
+#first, define the master copy instance (your power drill):
+
+	use CopyTree::VendorProof;
+
 	my $cpobj = CopyTree::VendorProof->new;
+
+#second, define subsidiary connector instances (your drill bit):
+
+	use SharePoint::SOAPHandler;
 	my $sharepointobj = SharePoint::SOAPHandler ->new; 
+
+#third, define the local connector instance (another drill bit):
+
+	use CopyTree::VendorProof::LocalFileOp;
 	my $localfileobj = CopyTree::VendorProof::LocalFileOp ->new;
 
-	$sharepointobj ->sp_creds_domain('spserver.spdomain.org:443'); #do not include protocal ('https://')
+#set up connection parameters for connectors (here SharePoint):
+#(So your drill bit doesn't have the standard hex end, but instead, it has a rounded end with two slots poking out. We need a slot to hex adaptor for the drill bit.)
+
+#do not include protocol ('https://')
+
+	$sharepointobj ->sp_creds_domain('spserver.spdomain.org:443'); 
+	$sharepointobj ->sp_creds_user('DOMAIN_NAME_CAPS\username');
+	$sharepointobj ->sp_creds_password('ch1ckens');
+	$sharepointobj ->sp_authorizedroot('https://spserver.spdomain.org:443/someroot/dir_under_which_Shared_Documents_appear'); 
+
+#define source(s) along with their object type(s) for the master instance (decide which screws you want to unscrew out of the wall, and what kinda bits you need for the screw types)
+
+#SOAPHandler objects always takes Shared Documents/ as start of a path
+
+	$cpobj -> src('Shared Documents/somedir', $sharepointobj);
+
+#add another SharePoint source:
+
+	$cpobj -> src('Shared Documents/somefile', $sharepointobj);
+
+#add a local source:
+
+	$cpobj -> src('/home/username/Documents/somedir', $localfileobj);
+
+#define destination along with its object type
+#(where do you want your new screw to go in, and what type)
+
+	$cpobj -> dst('/home/username/Documents', $localfileobj);
+
+#issue the cp method to complete copy
+#(undo the old screws, and insert the new one, using correct bits)
+
+	$cpobj ->cp;
+	$cpobj ->reset; #clears all src and dst
+
+=head1 HINT
+
+Before jumping straight into copying the files and directories
+that you desire, you might want to do a couple of things to 
+avoid hitting connection issues vs file permission issues.
+
+As a rule, always verify that you can actually connect to your 
+remote resource first, and list the files that you want to copy.
+
+For example, if I wanted to copy a file from SharePoint, I would
+connect to it first by:
+
+	#for most corporate environments, this is needed for sharepoint:	
+	delete $ENV{'https_proxy'};
+	
+	use SharePoint::SOAPHandler;
+	my $sharepointobj = SharePoint::SOAPHandler ->new; 
+
+	#do not include protocol ('https://') for sp_cred_domain
+	$sharepointobj ->sp_creds_domain('spserver.spdomain.org:443'); 
 	$sharepointobj ->sp_creds_user('DOMAIN_NAME_CAPS\username');
 	$sharepointobj ->sp_creds_password('ch1ckens');
 	$sharepointobj ->sp_authorizedroot('https://spserver.spdomain.org:443/someroot/dir_under_which_Shared_Documents_appear'); 
 	
-	$cpobj -> src('Shared Documents/somedir', $sharepointobj);#SOAPHandler objects always takes Shared Documents/ as start of a path
-	$cpobj -> src('Shared Documents/somefile', $sharepointobj);#SOAPHandler objects always takes Shared Documents/ as start of a path
-	$cpobj -> src('/home/username/Documents/somedir', $localfileobj);
-	$cpobj -> dst('/home/username/Documents', $localfileobj);
-	$cpobj ->cp;
-	$cpobj ->reset; #clears all src and dst
+	print "$_\n" for @{$sharepointobj ->fdls('', 'Shared_Documents')};
+
+This enables me to see what's under Shared_Documents (or other dirs
+that you may otherwise specify underneath it), to avoid typing
+in the wrong file name and getting a vague 'denied' message.
+
+=cut
 
 =head1 DESCRIPTION
 
-This module provides a generic interface to inplement a copy method between [a local computer and a remote file system] or [a remote file system and itself] or [local computer to local computer]. 
+This module provides a generic interface to implement a copy method between [a local computer and a remote file system] or [a remote file system and itself] or [local computer to local computer] or [various remote file systems]. 
 
-The supported (very basic) copy funtionalities mimics the unix cp command - copies SOURCE to DEST, or multiple SOURCE(s) to DIRECTORY.
+The supported (very basic) copy functionalities mimics the unix cp command - copies SOURCE to DEST, or multiple SOURCE(s) to DIRECTORY.
 
-This whole project arose when I needed to automate file transfers between a locally mounted file system (be it just local files or samba) and a remote Microsoft Sharepoint server.  Since at the time of writing (mid 2011), there wasn't a way to locally mount Sharepoint directories that's connected through https, I'd decided to write connector modules for it.  Half way down the process, it occurred to me that this will not be the last time some vendor provides a stupid interface for their services, so I reorganized this module to be adaptable to changes - as long as I can establish some basic functions of single file transfer, I can plug this module in and do more complex stuff such as copy entire directories.
+This whole project arose when I needed to automate file transfers between a locally mounted file system (be it just local files or samba) and a remote Microsoft SharePoint server.  Since at the time of writing (mid 2011), there wasn't a way to locally mount SharePoint directories that's connected through https, I'd decided to write connector modules for it.  Half way down the process, it occurred to me that this will not be the last time some vendor provides a non-standard interface for their services, so I reorganized this module to be adaptable to changes - as long as I can establish some basic functions of single file transfer, I can plug this module in and do more complex stuff such as copy entire directories.
 
-This adaptablity resulted in the semi complex model used to invoke a copy.  You basically need at least 2 objects for copy to work.  You need this module (CopyTree::VendorProof) to provide a base class to copy stuff with, but you also need at least one more module to provide data connection methods for retrieving a file, posting a file, listing a directory, and doing some sort of file tests for each protocol (be it a protocol for local file operations or a protocol for sharepoint operations).  In other words, you need an extra module per protocol, so if you want to copy from local to sharepoint, you need to load CopyTree::VendorProof::LocalFileOp (which I wrote) AND SharePoint::SOAPHandler (which I also wrote).  You would add sources and destinations of files you wish to copy via $vendorproof_instance ->src ($path, $connector_instance) and $vendorproof_instance ->dst($destinationpath, $another_connector_instance).  Once you've added all your sources, you would then run $vendorproof_instance ->cp; which would complete the copy operation as per your src, dst definitions.
+This adaptability resulted in the semi complex model used to invoke a copy.  You basically need at least 2 objects for copy to work.  You need this module (CopyTree::VendorProof) to provide a base class to copy stuff with, but you also need at least one more module to provide data connection methods for retrieving a file, posting a file, listing a directory, and doing some sort of file tests for each protocol (be it a protocol for local file operations or a protocol for sharepoint operations).  In other words, you need an extra module per protocol, so if you want to copy from local to sharepoint, you need to load CopyTree::VendorProof::LocalFileOp (which I wrote) AND SharePoint::SOAPHandler (which I also wrote).  You would add sources and the destination of files or dirs that you wish to copy via (multiple) $vendorproof_instance ->src ($path, $connector_instance) and a single $vendorproof_instance ->dst($destinationpath, $another_connector_instance).  Once you've added all your sources, you would then run $vendorproof_instance ->cp; which would complete the copy operation as per your src, dst definitions.
 
 The copy schemes are similar to unix' cp -rf ; i.e. copies SOURCE to DEST, or multiple SOURCE(s) to DIRECTORY.
 Noting that:
 
-   directory copies are recursive, and 
-   all copies are default overwrite
+=over
+
+=item *
+
+directory copies are recursive, and 
+all copies are default overwrite
+file names and directory names may contain spaces, and these spaces need not to be escaped.
+
+=back
 
 The primary use of this module is on a linux / unix system that needs to interact with a remote system.
 
@@ -302,122 +403,179 @@ The methods provided in this module (base class) include:
 
 =head2 new
 
-		my $ctvp_inst = CopyTree::VendorProof ->new;
-		creates a new VendorProof object instance 
+	my $ctvp_inst = CopyTree::VendorProof ->new;
+
+creates a new VendorProof object instance 
 
 =head2 reset
 
-		$ctvp_inst ->reset;
-		clears any previously set sources and destinations, retuns the instance.
+	$ctvp_inst ->reset;
+
+clears any previously set sources and destinations, retuns the instance.
 
 =head2 src
 
-		$ctvp_inst ->src($path, $path_instance)
-		adds a source and the connector instance of said source
-		you may add multiple sources by invoking this multiple times
+	$ctvp_inst ->src($path, $path_instance)
+
+adds a source and the connector instance of said source you may add multiple sources by invoking this multiple times
 
 =head2 dst
 
-		$ctvp_inst ->dst($dstpath, $dstpath_instance)
-		adds a destination and its connector instance
+	$ctvp_inst ->dst($dstpath, $dstpath_instance)
+
+adds a destination and its connector instance
 
 =head2 cp
 
-		$ctvp_inst ->cp;
-		starts copy operation based on the $ctvp_inst->src and $ctvp_inst->dst that's initiated
+	$ctvp_inst ->cp;
+
+starts copy operation based on the $ctvp_inst->src and $ctvp_inst->dst that's initiated
 
 =head2 copy_meth_deci
 
-		internal method - if source and destination are using the same object (for example, both on sharepoint), do not use the local memory as an intermediate data cache
+internal method - if source and destination are using the same object (for example, both on sharepoint), do not use the local memory as an intermediate data cache
 
 =head2 ls_tree
 
-		$ctvp_inst ->ls_tree($path)
-		returns a hash ref of the tree structure under $path, which files are undef, and dirs are references to yet another anonymous hash
+	$ctvp_inst ->ls_tree($path)
 
-=head2 ls_tree_fdret ( $root_path_name, $hashref)
+returns a hash ref of the tree structure under $path, which files are undef, and dirs are references to yet another anonymous hash
 
-		takes a $root_path_name and the $hashref returned from a previous $ctvp->ls_tree and returns (\@files, \@dirs) with the $root_path_name added on as the parent of these @files and @dirs
+=head2 ls_tree_fdret 
+	
+	$ctvp_inst->($root_path_name, $hashref)
+
+takes a $root_path_name and the $hashref returned from a previous $ctvp->ls_tree and returns (\@files, \@dirs) with the $root_path_name added on as the parent of these @files and @dirs
 
 =head2 path
 
-		This is not used by the VendorProof instance.  Instead, it provides a base class for connector instances to use to set a $path variable.  Not really used and not extensively tested.
+This is not used by the VendorProof instance.  Instead, it provides a base class for connector instances to use to set a $path variable.  Not really used and not extensively tested.
 
 =head2 fdls_ret
 
-		This method is provided as a base class for connector instances to use.  It provides common code for fdls methods from different connector objects.
+This method is provided as a base class for connector instances to use.  It provides common code for fdls methods from different connector objects.
 	
-	Of the aformentioned methods, new, path, and reset are the only methods that do not require additional connector objects to function, although path has the sole function of providing a base class to connector objects.
+Of the aforementioned methods, new, path, and reset are the only methods that do not require additional connector objects to function, although path has the sole function of providing a base class to connector objects.
 
 
-=head1 Object specific instance methods for the base class CopyTree::VendorProof:
+=head1 Object specific instance methods for the base class CopyTree::VendorProof
 
-Before you start involking CopyTree::VendorProof ->new, you'd better set up class instances for your source(s) and destination.  These class instances will provide class specific methods for file operations, which CopyTree::VendorProof relies on to carry out the cp -rf functionality. Since these are class methods, the first item from @_ is the instance itself, and should be stored in $inst, or whatever you'd like to call it.  The required class methods are described below (note that unless you're writing connecters other than CopyTree::VendorProof::LocalFileOp or SharePoint::SOAPHandler, you will not need to know them):
+Before you start involking CopyTree::VendorProof ->new, you'd better set up class instances for your source(s) and destination.  These class instances will provide class specific methods for file operations, which CopyTree::VendorProof relies on to carry out the cp -rf functionality. Since these are class methods, the first item from @_ is the instance itself, and should be stored in $inst, or whatever you'd like to call it.  The required class methods are described below (note that unless you're writing connecters - other than CopyTree::VendorProof::LocalFileOp or SharePoint::SOAPHandler - you will not need to know these methods, specifically.):
 
 =head2 0. new
 
-	which takes no arguments, but blesses an anonymous hash into the data connection object and returns it
+which takes no arguments, but blesses an anonymous hash into the data connection object and returns it.  If you're using Moose, it won't allow you to overwrite / redefine the new that's in the parent class, but that's okay. Use the parent class's new, and add a BUILD method that deletes 'source' and 'destination' hash keys, and you're set. If you're lazy, just don't use these keywords. 
+
+=cut
 
 =head2 1. fdls
 
-	which takes two arguments:
-		an option ($lsoption) that's one of 'f', 'd', 'fdarrayrefs', or ''
-		and a directory path $startpath.
-		The lsoption is passed to the SUPER class fdls_ret, and is not handled at this level.
-	This method will generate @files and @dirs, which are lists of files and directories that start with $startpath,
-	And return $self -> SUPER::fdls_ret ($lsoption, \@files, \@dirs),
-	which is ultimately a listing of the directory content, being one of
-		@files, @dirs, (\@files, \@dirs), or  @files_and_dirs) depending on the options being 'f', 'd', 'fdarrayrefs' or ''
+which takes two arguments:
+
+=over
+
+=item *
+
+$lsoption that's one of 'f', 'd', 'fdarrayrefs', or '', and
+
+a directory path $startpath.
+
+=back
+
+The lsoption is passed to the SUPER class fdls_ret, and is not handled at this level.  
+
+The $startpath should be standardized to start in a certain 'root' directory; for example, in SharePoint::SOAPHandler, it must start with "Shared Documents", and in Livelink::DAV, it must start with a dir right under the webdav root folder.  Spaces are allowed in the path names, and are handled transparently.
+
+This method will generate @files and @dirs, which are lists of files and directories that start with $startpath, And returns 
+	
+	$self -> SUPER::fdls_ret ($lsoption, \@files, \@dirs),
+
+which is ultimately a listing of the directory content, being one of @files, @dirs, (\@files, \@dirs), or  @files_and_dirs) depending on the options being 'f', 'd', 'fdarrayrefs' or ''
+
+For example, if you have a tree structure:
+
+	/home/
+	/home/john
+	/home/john/notes.txt
+	/home/john/punch.mov
+	/home/john/picutres
+	/home/john/pictures/1.jpg
+
+and your $startdir is /home/john, and your $lsoption is 'f':
+You will create
+
+	@files, which is ("/home/john/notes.txt", "/home/john/punch.mov")
+	@dirs, which consist of ("/home/john/pictures")
+
+And, the last line of your method (subroutine) will be
+
+	return $self->SUPER::fdls_ret($lsoption, \@files, \@dirs);
+
+=over
+
+=item *
+
+note, if you use Moose, simply return
+
+	$self -> fdls_ret ($lsoption, \@files, \@dirs)
+
+but remember to include an 'extends' statement for the base class:
+
+	extends CopyTree::VendorProof;
+
+=back
+
+=cut 
 
 =head2 2. is_fd
 
-	which takes a single argument of a file or dir $path,
-	and returns 'd' for directory, 
-		'f' for file,
-		'pd' for non-existing, but has a valid parent dir,
-		'0' for non of the above.
+which takes a single argument of a file or dir $path, and returns 
+
+	'd' for directory, 
+	'f' for file,
+	'pd' for non-existing, but has a valid parent dir,
+	'0' for non of the above.
+
+This code will vary by connector modules; most connectors have file test facilities to return 'f' or 'd', but most connectors we have to custom code the 'pd' test.  For connectors that can't tell 'f' or 'd' directly, we have to be creative and do a dir listing of the $path or do a dir listing of the $path's parent to guss what $path is.
 
 =head2 3. read_into_memory
 
-	which takes the $sourcepath of a file, 
-	and reads (slurps) it into a scalar $binfile #preferably in binmode,
-	and returns it as \$binfile
+which takes the $sourcepath of a file, and reads (slurps) it into a scalar $binfile #preferably in binmode, and returns it as \$binfile
 
 =head2 4. write_from_memory
 
-	which takes the reference to a scalar $binfile (\$binfile)  PLUS 
-	a destination path, and writes the scalar to the destination.
-	no return is necessary
+which takes the reference to a scalar $binfile (\$binfile)  PLUS a destination path, and writes the scalar to the destination.  no return is necessary
 
 =head2 5. copy_local_files
 
-	which takes the $source and $destination files on the same file system, 
-	and copies from $source to $destination.  No return is necessary.  This 
-	method is included such that entirely remote operations may transfer faster,
-	without an intermediate 'download to local machine' step.
+which takes the $source and $destination files on the same file system, and copies from $source to $destination.  No return is necessary.  This method is included such that entirely remote operations (limited to the same type of remote system) may transfer faster, without an intermediate 'download to local machine' step. Does not proceed if destination already exists (prevents accidental overwrite).  Note that the parent class CopyTree::VendorProof has a default overwrite setting.  Overwrite is not enabled in the subclass because depending on the connector, sometimes when the both the source and destination are dirs, the result of a copy puts the souce underneath the exisiting destination.
 
 =head2 6. cust_mkdir
 
-	which takes a $dirpath and creates the dir.  If the parent of $dirpah
-	does not exist, give a warning and do not do anything
+which takes a $dirpath and creates the dir.  If the parent of $dirpah does not exist, give a warning and do not do anything
 
 =head2 7. cust_rmdir
 
-	which takes a $dirpath and removes the entire dir tree from $dirpath
-	croaks / dies if $dirpath is not a dir. No return is necessary.
-	To make things easier, when writing this method, use
+which takes a $dirpath and removes the entire dir tree from $dirpath.  
+cluck / warns if $dirpath is not a dir. No return is necessary.
+	
+If your connector does not know how to recursively remove a tree, you may use:
 
 	my ($filesref, $dirsref) = $inst -> ls_tree_fdret( $dirpath, $inst -> ls_tree($dirpath);
 
-	to get array references of @files and @dirs under $dirpath
-	Note: ls_tree and ls_tree_fdret uses fdls, and are parent classes in CopyTree::VendorProof 
+to get array references of @files and @dirs under $dirpath, followed by manual removal of such files and dirs.
+
+=over
+
+=item *
+
+Note: ls_tree and ls_tree_fdret are of the parent class CopyTree::VendorProof, and uses the connector specific fdls method from subclasses to complete their functions.
+
+=back
 
 =head2 8. cust_rmfile
 
-	which takes a $filepath and removes it.
-	croaks / dies if $file is not a file. 
-
-
+which takes a $filepath and removes it.  cluck / warns if $file is not a file. 
 
 =head2 EXPORT
 
@@ -425,19 +583,21 @@ None by default.
 
 =head1 SEE ALSO
 
-Check out CopyTree::VendorProof::LocalFileOp and SharePoint::SOAPHandler.
+Check out 
+
+CopyTree::VendorProof::LocalFileOp 
+SharePoint::SOAPHandler
+Livelink::DAV
 
 =head1 AUTHOR
 
-dbmolester, dbmolester de gmail.com<gt>
+dbmolester, dbmolester de gmail.com
 
 =head1 COPYRIGHT AND LICENSE
 
 Copyright (C) 2011 by dbmolester
 
-This library is free software; you can redistribute it and/or modify
-it under the same terms as Perl itself, either Perl version 5.10.1 or,
-at your option, any later version of Perl 5 you may have available.
-
+This library is free software; you can redistribute it and/or modify it under the same terms as Perl itself, either Perl version 5.10.1 or, at your option, any later version of Perl 5 you may have available.
 
 =cut
+

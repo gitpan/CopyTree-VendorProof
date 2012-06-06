@@ -5,7 +5,8 @@
 
 # change 'tests => 1' to 'tests => last_test_to_print';
 
-use Test::More  'no_plan';
+use Test::More  tests=>15;
+#use Test::More  'no_plan';
 BEGIN { use_ok('CopyTree::VendorProof') };
 
 #########################

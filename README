@@ -1,4 +1,4 @@
-CopyTree-VendorProof version 0.0011
+CopyTree-VendorProof version 0.0012
 ==============================================
 
 This module provides a generic interface to inplement a copy method between [a local computer and a remote file system] or [a remote file system and itself] or [local computer to local computer]. 
@@ -54,15 +54,42 @@ How to write connector methods ($_[0] holds the class / instance itself, argumen
 		Where $lsoption is 'd', 'f', 'fdarrayrefs', or '', 
 		and $path is the path of the directory to be listed.	
 		The lsoption is passed to the SUPER class fdls_ret, and is not handled at this level.
+		The $startpath should be standardized to start in a certain 'root' directory; for
+      example, in SharePoint::SOAPHandler, it must start with "Shared Documents", and in 
+		Livelink::DAV, it must start with a dir right under the webdav root folder.
+
 		Required action:
 		You must put all the files found in $path in @files, and all the dirs in @dirs, then
 		return $self->SUPER::fdls_ret ($lsoption, \@files, \@dirs).
+
+	   For example, if you have a tree structure:
+	
+	      /home/
+	      /home/john
+	      /home/john/notes.txt
+	      /home/john/punch.mov
+	      /home/john/picutres
+	      /home/john/pictures/1.jpg
+	
+	   and your $startdir is /home/john, and your $lsoption is 'f':
+	   You will create
+	      @files, which is ("/home/john/notes.txt", "/home/john/punch.mov")
+	      @dirs, which consist of ("/home/john/pictures")
+	   And, the last line of your method (subroutine) will be
+	      return $self->SUPER::fdls_ret($lsoption, \@files, \@dirs);
 
 	is_fd: Pass in $query
 		Where $query is the file or dir in question to do a file test.
 		Required action:
 		For the specific $query, the return must be 'f' for file, 'd' for directory, 'pd' for
 		a non existing file / dir that has a valid parent, and 0 for everything else.
+
+	   This code will vary by connector modules; most connectors have file test 
+		facilities to return 'f' or 'd', but most connectors we have to create
+		something for the 'pd' test.  For connectors that can't tell 'f' or 'd' directly,
+		we have to be creative and do a dir listing of the $path or do a dir listing
+		of the $path's parent to guss what $path is.
+
 
 	read_into_memory: Pass in $sourcepath
 		Where $sourcepath is the file to read.
@@ -86,6 +113,8 @@ How to write connector methods ($_[0] holds the class / instance itself, argumen
 		do not require an intermediate step of holding each file in memory. 
 		The $source file is copied and saved to the file name specified by 
 		$dest.
+		Does not proceed if destination already exists (prevents 
+		accidental overwrite).
 		No return is necessary.
 	
 	cust_mkdir: Pass in $path
