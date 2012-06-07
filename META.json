@@ -1,5 +1,5 @@
 {
-   "abstract" : "Perl extension for a generic interface to inplement a copy method between [a local computer and a remote file system] or [a remote file system and itself] or [local computer to local computer]. An example remote system would be Microsoft's Sharepoint file storeage, which takes commands via https",
+   "abstract" : "Perl extension for generic copying.  This module's intented purpose is to facilitate file / dir copies between different types of remote systems that frequently use very different syntax for similar functions.  For example, Microsoft SharePoint's SOAP protocols and the Opentext Livelink's WebDAV protocols both support copy functions, but it is tedious to automate the movement of Livelink files into a SharePoint site.",
    "author" : [
       "dbmolester de gmail.com"
    ],
@@ -35,5 +35,5 @@
       }
    },
    "release_status" : "stable",
-   "version" : "0.0012"
+   "version" : "0.0013"
 }

@@ -14,7 +14,7 @@ use warnings;
 # If you do not need this, moving things directly into @EXPORT or @EXPORT_OK
 # will save memory.
 
-our $VERSION = '0.0012';
+our $VERSION = '0.0013';
 
 use Carp();
 use Data::Dumper;
@@ -340,6 +340,30 @@ command - copies SOURCE to DEST, or multiple SOURCE(s) to DIRECTORY.
 	$cpobj ->cp;
 	$cpobj ->reset; #clears all src and dst
 
+=head1 IDIOSYNCRASIES 
+
+Some idiosyncrasies of this module is demonstrated using the unix cp command:
+
+=head2 single file source
+
+	cp path/src.file dst
+
+If dst does not exist as a file or directory, it is treated as the new file name of src.file, and this operation is essentially a mv command.  If dst exists as a file, it is overwritten.  If dst exists as a dir, the basename of path/src.file is copied into the dir, and we get dst/src.file.
+
+=head2 single dir source
+
+	cp path/src.dir dst
+
+If dst is a file, cp fails.  If dst does not exist as a dir, cp fails.  If dst exists as a dir, the basename of path/src.dir is copied into dst, and we get dst/src.dir.
+
+=head2 mlti mixed source
+
+	cp path/src.dir path2/file dst
+
+If dst is a file, cp fails.  If dst does not exist as a dir, cp fails.  If dst exists as a dir, the basename of all files and dirs are copied into dst, and we get dst/src.dir and dst/file.
+
+Note that in the cases where cp is allowed to proceed, and existing files will be overwritten.  This behavior relies on the subclasses write_from_memory and copy_local_files
+
 =head1 HINT
 
 Before jumping straight into copying the files and directories
@@ -544,11 +568,11 @@ which takes the $sourcepath of a file, and reads (slurps) it into a scalar $binf
 
 =head2 4. write_from_memory
 
-which takes the reference to a scalar $binfile (\$binfile)  PLUS a destination path, and writes the scalar to the destination.  no return is necessary
+which takes the reference to a scalar $binfile (\$binfile)  PLUS a destination path, and writes the scalar to the destination.  Do a is_fd check on destination, and perform no action if the destination exists as directory (base class handles that).  Only (over-)write if destination exists as a file, or create a new file using the destination path.  no return is necessary.  
 
 =head2 5. copy_local_files
 
-which takes the $source and $destination files on the same file system, and copies from $source to $destination.  No return is necessary.  This method is included such that entirely remote operations (limited to the same type of remote system) may transfer faster, without an intermediate 'download to local machine' step. Does not proceed if destination already exists (prevents accidental overwrite).  Note that the parent class CopyTree::VendorProof has a default overwrite setting.  Overwrite is not enabled in the subclass because depending on the connector, sometimes when the both the source and destination are dirs, the result of a copy puts the souce underneath the exisiting destination.
+which takes the $source and $destination files on the same file system, and copies from $source to $destination.  No return is necessary.  This method is included such that entirely remote operations (limited to the same type of remote system) may transfer faster, without an intermediate 'download to local machine' step. Only proceeds if destination is not a dir.  When destination is a file, it is overwritten, and when it does not exist, it is created using the $destination name. In other words, is_fd should return 'f' or 'pd' to proceed.  
 
 =head2 6. cust_mkdir
 

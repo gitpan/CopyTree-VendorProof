@@ -1,9 +1,9 @@
-CopyTree-VendorProof version 0.0012
+﻿CopyTree-VendorProof version 0.0012
 ==============================================
 
-This module provides a generic interface to inplement a copy method between [a local computer and a remote file system] or [a remote file system and itself] or [local computer to local computer]. 
+This module provides a generic interface to implement a copy method between [a local computer and a remote file system] or [a remote file system and itself] or [local computer to local computer]. 
 
-The supported (very basic) copy funtionalities mimics the unix cp -rf command - copies SOURCE to DEST, or multiple SOURCE(s) to DIRECTORY.
+The supported (very basic) copy functionalities mimics the unix cp -rf command - copies SOURCE to DEST, or multiple SOURCE(s) to DIRECTORY.
 
 This module is written for file copies to and from a remote file system that cannot be mounted; for example, the Microsoft Sharepoint web service (as of 2011).  To use the methods in this module, you must provide objects that act as connectors to the remote file system and / or the local file system (More details about the methods required in these connector modules below).  For example, if you want to copy locally a file to a dir (I don't know why you would want to use this module for that, unless you're on a very silly OS that doesn't handle copy well), you must provide an extra object that provides basic methods for local file copying.  I have written one for local, named CopyTree::VendorProof::LocalFileOp.  
 
@@ -13,7 +13,7 @@ If you would like to copy to and from a variety of remote and local file systems
 
 The primary use of this module is on a linux / unix system that needs to interact with a remote system.  This module is not tested on Macs.
 
-Currenly, you need to install Authen::NTLM version 1.09 or greater for this module to work.  With my v1.09 tweak to Authen::NTLM on CPAN, this module should just work.  If you actually use Authen::NTLM directly for some reason, remember to set
+Currently, you need to install Authen::NTLM version 1.09 or greater for this module to work.  With my v1.09 tweak to Authen::NTLM on CPAN, this module should just work.  If you actually use Authen::NTLM directly for some reason, remember to set
 
 ntlmv2('sp');
 
@@ -33,7 +33,7 @@ The methods provided in this module (base class) include:
 	path
 	fdls_ret
 	
-	Of the aformentioned methods, new, path, and reset are the only methods that do not require additional connector objects to function, although path has the sole function of providing a base class to connector objects.
+	Of the aforementioned methods, new, path, and reset are the only methods that do not require additional connector objects to function, although path has the sole function of providing a base class to connector objects.
 
 The methods required in the connector objects include:
 	new
@@ -133,7 +133,7 @@ How to write connector methods ($_[0] holds the class / instance itself, argumen
 	cust_rmfile: Pass in $filepath
 		Where $filepath is the path of the file
 		Required action
-		removes the file as specified by path.  dies/ croaks if $filepath is not a file
+		removes the file as specified by path.  warns / carps if $filepath is not a file
 		No return is necessary.
 
 
